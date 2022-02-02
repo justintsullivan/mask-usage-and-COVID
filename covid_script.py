@@ -177,6 +177,8 @@ def create_datasets():
 
     for data in datasets:
         # Query that constructs project dataset
+        # The Vertex AI platform was experiencing difficulties at the time of writing.
+        # As such, the query below was written in BigQuery, using standard SQL syntax for nested queries, as opposed to a python list structure for nest queries.
         query = f'''
             SELECT
                 * EXCEPT( 
