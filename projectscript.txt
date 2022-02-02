@@ -1,0 +1,101 @@
+########################################################
+########################################################
+
+# Create Xy data frame
+
+Xy = data.frame(cbind(step.X,Y))
+
+# Required packages to perform best subsets (install if necessary)
+#install.packages("leaps")
+#install.packages("Rtools")
+#install.packages("bestglm")
+
+library(bestglm)
+
+bestmodel = bestglm(Xy, IC = 'CV',family = gaussian, t = 100)
+bestmodel = bestmodel$BestModel
+summary(bestmodel)
+
+f.test(bestmodel,stepmodel) #Reject bestmodel
+
+
+########################################################
+########################################################
+
+# Cross-validation using RMSPE
+
+########################################################
+########################################################
+
+# It has been determined that the model produced by
+# stepwise regression, stepmodel, has produced the
+# best model thus far. As such, stepmodel will be used
+# in the cross-validation process.
+
+
+# First, RMSPE will be calculated for the original model
+betahat = cbind(coef(model))
+
+# Betahat includes an intercept, so this must be accounted
+# for in the design matrix
+X.matrix = as.matrix(cbind(rep(1,nrow(X.validation)),X.validation))
+
+#Calculate predicted values
+Y.pred = X.matrix%*%betahat
+
+#Calculate RMSPE
+Y.validation = as.matrix(Y.validation)
+sqrt(1/(nrow(Y.validation))*sum((Y.validation-Y.pred)^2))
+
+# Next, RMSPE will be calculated for the step model
+# select correct validation set (choose 1)
+#primary
+step.X.validation = X.validation[,c(2,7:11,13,15,18,23:26)]
+#alt1
+step.X.validation = X.validation[,c(5:9,11,13,16,21,23,27)]
+#alt2
+step.X.validation = X.validation[,c(1,3:7,9,11,14,19,21)]
+#alt3
+step.X.validation = X.validation[,c(3:7,9,11,14,17,18,20:23)]
+
+step.betahat = as.matrix(cbind(coef(stepmodel)))
+step.X.matrix = as.matrix(cbind(rep(1,nrow(step.X.validation)),step.X.validation))
+step.Y.pred = step.X.matrix %*% step.betahat
+
+#Calculate RMSPE
+sqrt(1/(nrow(Y.validation))*sum((Y.validation-step.Y.pred)^2))
+
+
+########################################################
+########################################################
+
+# Additional code for use in Python visualizations
+
+########################################################
+########################################################
+# Save various elements locally for visualization
+
+# Save residuals for Python visualization
+viz_e = data.frame(Project.Data$county_fips_code,e)
+viz_step.e = data.frame(Project.Data$county_fips_code,step.e)
+viz_step.yhat = data.frame(Project.Data$county_fips_code,step.yhat)
+
+# primary
+# write.csv(viz_e,'primary_residuals.csv')
+# write.csv(viz_step.e,'primary_step_residuals.csv')
+# write.csv(viz_step.yhat,'primary_step_predict.csv')
+
+# alt1
+# write.csv(viz_e,'alt1_residuals.csv')
+# write.csv(viz_step.e,'alt1_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt1_step_predict.csv')
+
+# alt2
+# write.csv(viz_e,'alt2_residuals.csv')
+# write.csv(viz_step.e,'alt2_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt2_step_predict.csv')
+
+# alt3
+# write.csv(viz_e,'alt3_residuals.csv')
+# write.csv(viz_step.e,'alt3_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt3_step_predict.csv')
