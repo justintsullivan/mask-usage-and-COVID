@@ -17,7 +17,7 @@ bqclient   = bigquery.Client(credentials=cred, project=proj)
 # change this to your BigQuery proj_id
 proj_id = 'burnished-ray-323422'
 # change this to your dataset name
-dataset = f'{proj_id}.COVID_Project'
+dataset = f'{proj_id}.COVID_project'
 
 # Define useful functions to interact with BigQuery
 def get_cols(tbl):
@@ -468,7 +468,7 @@ def create_datasets():
                                     END AS geoid,
                                     B01001_calc_PopDensity AS pop_density
                                 FROM
-                                    `burnished-ray-323422.COVID_Project.population_density` 
+                                    `burnished-ray-323422.COVID_project.population_density` 
                             )
                         )
                     ) AS d
@@ -486,7 +486,7 @@ def create_datasets():
                                 ELSE 0
                             END AS metropolitan
                         FROM
-                            `burnished-ray-323422.COVID_Project.metropolitan_counties` 
+                            `burnished-ray-323422.COVID_project.metropolitan_counties` 
                     ) AS r
                     ON
                         r.fips_code = c.county_fips_code
@@ -870,7 +870,7 @@ def create_results_dataset():
         select
             *
         from
-            `sublime-bongo-332800.COVID_Project.regression_results`
+            `burnished-ray-323422.COVID_project.regression_results`
         '''
     
     # Run query and save as dataframe
@@ -881,15 +881,15 @@ def create_results_dataset():
 regression_results = create_results_dataset()
 #regression_results.head()
 
-fig = px.choropleth(regression_results, geojson=counties, locations='fips_code', color='primary_rsq',
+fig = px.choropleth(regression_results, geojson=counties, locations='county_fips_code', color='primary_rsq_state',
                            color_continuous_scale="blues",
                            scope="usa",
                            hover_name = 'state',
-                           hover_data={'primary_rsq':':.4f',
-                                       'primary_rsq':':.4f'
+                           hover_data={'primary_rsq_state':':.4f',
+                                       'primary_rsq_state':':.4f'
                                       },
-                           labels={'fips_code':'FIPS code ',
-                                   'primary_rsq':'R-squared '
+                           labels={'county_fips_code':'FIPS code ',
+                                   'primary_rsq_state':'R-squared '
                                   },
                            range_color=(-3,1)
                           )
@@ -901,20 +901,20 @@ fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
 rsq_percentiles={}
 
 for i in range(0,105,5):
-    p = np.percentile(regression_results['primary_step_rsq'],i)
+    p = np.percentile(regression_results['primary_step_rsq_state'],i)
     rsq_percentiles[str(i)] = p
     
 rsq_percentiles
 
 #Create chloropleth map of R-squared values for best model
-best_model_chlor = px.choropleth(regression_results, geojson=counties, locations='fips_code', color='primary_step_rsq',
+best_model_chlor = px.choropleth(regression_results, geojson=counties, locations='county_fips_code', color='primary_step_rsq_state',
                            color_continuous_scale="Blues",
                            scope="usa",
                            hover_name = 'state',
-                           hover_data={'primary_step_rsq':':.4f'
+                           hover_data={'primary_step_rsq_state':':.4f'
                                       },
-                           labels={'fips_code':'FIPS code ',
-                                   'primary_step_rsq':'R-squared '
+                           labels={'county_fips_code':'FIPS code ',
+                                   'primary_step_rsq_state':'R-squared '
                                   },
                            range_color=(-3,1)
                           )
