@@ -15,7 +15,7 @@ except:
 cred, proj = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
 bqclient   = bigquery.Client(credentials=cred, project=proj)
 # change this to your BigQuery proj_id
-proj_id = 'sublime-bongo-332800'
+proj_id = 'burnished-ray-323422'
 # change this to your dataset name
 dataset = f'{proj_id}.COVID_Project'
 
@@ -468,7 +468,7 @@ def create_datasets():
                                     END AS geoid,
                                     B01001_calc_PopDensity AS pop_density
                                 FROM
-                                    `sublime-bongo-332800.COVID_Project.population_densities` 
+                                    `burnished-ray-323422.COVID_Project.population_density` 
                             )
                         )
                     ) AS d
@@ -486,7 +486,7 @@ def create_datasets():
                                 ELSE 0
                             END AS metropolitan
                         FROM
-                            `sublime-bongo-332800.COVID_Project.metropolitan_counties` 
+                            `burnished-ray-323422.COVID_Project.metropolitan_counties` 
                     ) AS r
                     ON
                         r.fips_code = c.county_fips_code
