@@ -1,0 +1,513 @@
+########################################################
+########################################################
+
+# Define functions 
+
+########################################################
+########################################################
+# f-test
+f.test=function(model0,model){
+  e02=sum((model0$residuals)^2)   #Residual sum of squares for small model.
+  e2=sum((model$residuals)^2)     #Residual sum of squares for big model.
+  df0=model0$df.residual          #Residual degrees of freedom for small model.
+  df=model$df.residual            #Residual degrees of freedom for big model.
+  f.stat=((e02-e2)/(df0-df))/(e2/df)
+  p.value=pf(f.stat,
+             df1=df0-df,
+             df2=df,
+             lower.tail=FALSE)
+  return(list(f.stat=f.stat,p.value=p.value))
+}
+
+
+###########################################################
+# Brown Forsythe Test
+# e is a vector of residuals, and x is some vector
+# (usually yhat or one of the x_j's)
+brown.forsythe=function(e,x){
+  m=median(x)
+  e1=e[x<=m]
+  e2=e[x>m]
+  e1med=median(e1)
+  e2med=median(e2)
+  d1=abs(e1-e1med)
+  d2=abs(e2-e2med)
+  d1bar=mean(d1)
+  d2bar=mean(d2)
+  n1=length(e1)
+  n2=length(e2)
+  sp=sqrt((sum((d1-d1bar)^2)+sum((d2-d2bar)^2))/(n1+n2-2))
+  t=(d1bar-d2bar)/(sp*sqrt(1/n1+1/n2))
+  return(2*pt(abs(t),n1+n2-2,lower.tail=FALSE))
+}
+
+#######################################################
+# Box Cox Transformation
+# Y is the dependent variable from a regression equation, and
+# X is the design matrix.
+# lambdarange is a vector containing the possible values of lambda
+box.cox=function(Y,X,lambdarange){
+  n=length(Y)
+  K2=(prod(Y^(1/n)))
+  L=length(lambdarange)
+  SSE=1:L
+  lambda=1:L
+  for(l in 1:L){
+    lambda[l]=lambdarange[l]
+    K1=1/(lambda[l]*K2^(lambda[l]-1))
+    if(lambda[l]==0){W=K2*log(Y)}
+    if(lambda[l]!=0){W=K1*(Y^lambda[l]-1)}
+    tempmodel=lm(W~.,data=X)
+    SSE[l]=deviance(tempmodel)
+  }
+  i=(sort(SSE,index.return=TRUE)$ix)[1]
+  plot(lambda,SSE)
+  return(lambdarange[i])
+}
+
+
+########################################################
+########################################################
+
+# Data Preparation
+
+########################################################
+########################################################
+# Though 4 datasets were constructed and analyzed for this project,
+# this program was only built to handle one at a time.
+
+# When importing data into the environment, be sure to use column headings.
+# Additionally, use the following convention to re-name each (if applicable):
+#   - Primary -> primary
+#   - Alternative 1 (1,3,1) -> alt1
+#   - Alternative 2 (2,3) -> alt2
+#   - Alternative 3 (3,2) -> alt3
+
+# For each dataset, choose and run the correct lines to save data,
+# create indices, construct the design matrix,
+# and add appropriate interaction terms.
+
+# (After these 4 selections, 
+# the only other user-input occurs during the Box-Cox Transformation)
+
+# Import data (Choose 1)
+Project.Data = cbind(primary)
+Project.Data = cbind(alt1)
+Project.Data = cbind(alt2)
+Project.Data = cbind(alt3)
+
+# Create an index of columns that will be used in design matrix (Choose 1)
+design.index.primary = c(3:7,8:14,16,19:24,27:32,34)
+design.index.alt1 = c(3:5,6:12,14,17:22,25:30,32)
+design.index.alt2 = c(4,5:11,13,16:21,24:29,31)
+design.index.alt3 =c(4,5:11,13,16:21,24:29,31)
+
+# Create design matrix (Choose 1)
+X = Project.Data[design.index.primary]
+X = Project.Data[design.index.alt1]
+X = Project.Data[design.index.alt2]
+X = Project.Data[design.index.alt3]
+
+# Creates interaction terms for '[each mask use variable]' * 'metropolitan'
+# (Choose 1 code block)
+# primary
+I_nev_metro=c(X$never*X$metropolitan)
+I_rar_metro=c(X$rarely*X$metropolitan)
+I_som_metro=c(X$sometimes*X$metropolitan)
+I_frq_metro=c(X$frequently*X$metropolitan)
+I_alw_metro=c(X$always*X$metropolitan)
+X = cbind(X,I_nev_metro,I_rar_metro,I_som_metro,I_frq_metro,I_alw_metro)
+# alt1
+I_no_metro=I(X$no_mask*X$metropolitan)
+I_som_metro=I(X$sometimes_mask*X$metropolitan)
+I_alw_metro=I(X$always_mask*X$metropolitan)
+X = cbind(X,I_no_metro,I_som_metro,I_alw_metro)
+# alt2 / alt3 (same code block for both)
+I_mask_metro=I(X$mask*X$metropolitan)
+X = cbind(X,I_mask_metro)
+
+# Ensure this approach produces desired effect by storing design matrix
+# in a data frame and analyzing separately (optional)
+#X.df = data.frame(X)
+
+# Create Y vector
+Y = cbind(Project.Data[,2])
+
+
+# Now that the data is prepared, it will be split 
+# into trianing and validation sets using an approximate
+# 80:20 split, respectively.
+
+set.seed(37)
+validation.sample = sample(nrow(Project.Data),size=nrow(Project.Data)*0.2)
+X.validation = X[validation.sample,]
+Y.validation = Y[validation.sample,]
+X = X[-validation.sample,]
+Y = Y[-validation.sample,]
+########################################################
+########################################################
+
+# Analysis 
+
+########################################################
+########################################################
+
+# Fit a linear model to the data
+# Compute fitted values of Y and the residuals
+
+model = lm(Y~.,data=X)
+
+summary(model)
+e = model$residuals
+Yhat = predict(model)
+
+
+########################################################
+
+# Plot Y vs Yhat to assess presence of model curvature
+
+# Data has too many records to produce a readable plot.
+# As such, a random sample of roughly 10% will be selected for visualization.
+r.sample = sample(c(1:nrow(X)), size = nrow(X)*0.1, replace = F)
+
+# Plot 
+plot(Yhat[r.sample], Y[r.sample], main = 'Y Vs. Yhat', xlab = 'Yhat', ylab = 'Y')
+lines(c(0,2*10^6),c(0,2*10^6),col="red")
+
+########################################################
+
+# Plot e vs Yhat
+
+# The same random sample will be used for this plot
+plot(Yhat[r.sample], e[r.sample], main = 'e Vs. Yhat', xlab = 'Yhat', ylab = 'e')
+lines(c(-2*10^6,2*10^6),c(0,0),col="red")
+
+#######################################################
+
+# QQ-plot to visually assess normality of error terms
+
+qqnorm(e, main = 'Normal QQ-Plot of Model Residuals')
+
+
+#######################################################
+
+# Shapiro-Wilk Test to foramlly assess normality of error terms
+
+shapiro.test(e)
+
+
+#######################################################
+
+# Plot of abs(e) vs Yhat to  visaully assess constancy of error variance
+
+plot(Yhat, abs(e))
+
+
+#######################################################
+
+# Brown-Forsythe Test to formally assess constancy of error variance
+
+
+brown.forsythe(e,Yhat)
+
+
+#######################################################
+
+# Calculate the RSS and R-squared
+RSS = sum(e^2)
+
+Ybar = mean(Y)
+Yvar = sum((Y - Ybar)^2)
+
+Rsq = 1 - (RSS/Yvar)
+Rsq
+
+
+#################################################
+# Box-Cox Transformation
+
+# Since Y contains negative values, a positive translation 
+# must occur in order for Box-Cox to work.
+
+# Determine magnitude of translation
+range(Y)
+d=density(Y)
+plot(d)
+
+# Since Y has a min value of approximately -66,
+# a range of approximately 113, and 
+# it appears to be tighly clustered around 0,
+# two translations/B-C transformations will be performed
+
+# Translations
+Y.t1 = Y + 67
+Y.t2 = Y + 100
+
+# B-C Transformations
+#1
+box.cox(Y.t1,X,(-30:30)/10) #B-C returns 1.6 (primary)
+box.cox(Y.t2,X,(-30:30)/10) #B-C returns 1.9 (primary)
+#2
+box.cox(Y.t1,X,(140:180)/100) #B-C returns 1.63 (primary)
+box.cox(Y.t2,X,(160:210)/100) #B-C returns 1.93 (primary)
+#3
+box.cox(Y.t1,X,(1620:1640)/1000) #B-C returns 1.631 (primary)
+box.cox(Y.t2,X,(1920:1940)/1000) #B-C returns 1.935(primary)
+
+#######################################################
+# Transform Y, fit a linear model to the data, and
+# compute fitted values and residuals
+
+Ytilde1 = Y^1.631
+Ytilde2 = Y^1.935
+
+tmodel1 = lm(Ytilde1 ~.,data = X)
+tmodel2 = lm(Ytilde2 ~.,data = X)
+
+summary(tmodel1)
+summary(tmodel2)
+
+t1.e = tmodel1$residuals
+t2.e = tmodel2$residuals
+
+Ytilde1.hat = predict(tmodel1)
+Ytilde2.hat = predict(tmodel2)
+
+
+########################################################
+# Plot Ytilde vs Ytilde.hat and
+# plot t.e vs Ytilde.hat for each transformed model
+
+plot(Ytilde1.hat[r.sample],Ytilde1[r.sample])
+lines(c(0,2*10^6),c(0,2*10^6),col="red")
+plot(Ytilde2.hat[r.sample],Ytilde2[r.sample])
+lines(c(0,2*10^6),c(0,2*10^6),col="red")
+
+plot(Ytilde1.hat[r.sample], t1.e[r.sample])
+lines(c(-2*10^6,2*10^6),c(0,0),col="red")
+plot(Ytilde2.hat[r.sample], t2.e[r.sample])
+lines(c(-2*10^6,2*10^6),c(0,0),col="red")
+
+
+########################################################
+# Investigate normality of the error terms
+
+# Create a qq-plot
+qqnorm(t1.e)
+qqnorm(t2.e)
+
+# Perform Shapiro-Wilk Test
+shapiro.test(t1.e)
+shapiro.test(t2.e)
+
+
+########################################################
+# Investigate constancy of the error variance
+
+# Plot abs(e)  vs Ytilde.hat
+plot(Ytilde1.hat, abs(t1.e))
+plot(Ytilde2.hat, abs(t2.e))
+
+# Perform Brown-Forsythe Test
+brown.forsythe(t1.e, Ytilde1.hat)
+brown.forsythe(t2.e, Ytilde2.hat)
+
+
+########################################################
+########################################################
+
+# Stepwise regresson
+
+########################################################
+########################################################
+
+# Create step model to reduce dimensionality
+bigmodel = model
+stepmodel = step(bigmodel)
+summary(stepmodel)
+
+# Create variables from stepmodel variables and
+# create stepmodel design matrix for use
+# in best subsets (choose 1 code block)
+# primary
+x1 = X$rarely
+x2 = X$workplace_closing
+x3 = X$cancel_public_events
+x4 = X$restrictions_on_gatherings
+x5 = X$close_public_transit
+x6 = X$stay_at_home_requirements
+x7 = X$stringency_index
+x8 = X$South
+x9 = X$metropolitan
+x10 = X$black_pop
+x11 = X$asian_pop
+x12 = X$hispanic_pop
+x13 = X$pop_determined_poverty_status
+step.X = cbind(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13)
+
+# alt1
+x1 = X$workplace_closing
+x2 = X$cancel_public_events
+x3 = X$restrictions_on_gatherings
+x4 = X$close_public_transit
+x5 = X$stay_at_home_requirements
+x6 = X$stringency_index
+x7 = X$South
+x8 = X$metropolitan
+x9 = X$black_pop
+x10 = X$hispanic_pop
+x11 = X$I_alw_metro
+step.X = cbind(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11)
+
+# alt2
+x1 = X$mask
+x2 = X$workplace_closing
+x3 = X$cancel_public_events
+x4 = X$restrictions_on_gatherings
+x5 = X$close_public_transit
+x6 = X$stay_at_home_requirements
+x7 = X$stringency_index
+x8 = X$South
+x9 = X$metropolitan
+x10 = X$black_pop
+x11 = X$hispanic_pop
+step.X = cbind(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11)
+
+# alt3
+x1 = X$workplace_closing
+x2 = X$cancel_public_events
+x3 = X$restrictions_on_gatherings
+x4 = X$close_public_transit
+x5 = X$stay_at_home_requirements
+x6 = X$stringency_index
+x7 = X$South
+x8 = X$metropolitan
+x9 = X$amerindian_pop
+x10 = X$white_pop
+x11 = X$asian_pop
+x12 = X$hispanic_pop
+x13 = X$pop_determined_poverty_status
+x14 = X$I_mask_metro
+step.X = cbind(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14)
+
+# Analyze normality and constancy of variance of errors
+step.e = stepmodel$residuals
+shapiro.test(step.e)
+
+step.yhat = predict(stepmodel)
+
+plot(step.yhat[r.sample], Y[r.sample])
+lines(c(0,2*10^6),c(0,2*10^6),col="red")
+
+plot(step.yhat[r.sample], step.e[r.sample])
+lines(c(0,2*10^6),c(0,2*10^6),col="red")
+
+# Compare stepmodel and original model with an F-test (despite lack of normality)
+f.test(stepmodel,bigmodel)
+
+########################################################
+########################################################
+
+# Best subsets
+
+########################################################
+########################################################
+
+# Create Xy data frame
+
+Xy = data.frame(cbind(step.X,Y))
+
+# Required packages to perform best subsets (install if necessary)
+#install.packages("leaps")
+#install.packages("Rtools")
+#install.packages("bestglm")
+
+library(bestglm)
+
+bestmodel = bestglm(Xy, IC = 'CV',family = gaussian, t = 100)
+bestmodel = bestmodel$BestModel
+summary(bestmodel)
+
+f.test(bestmodel,stepmodel) #Reject bestmodel
+
+
+########################################################
+########################################################
+
+# Cross-validation using RMSPE
+
+########################################################
+########################################################
+
+# It has been determined that the model produced by
+# stepwise regression, stepmodel, has produced the
+# best model thus far. As such, stepmodel will be used
+# in the cross-validation process.
+
+
+# First, RMSPE will be calculated for the original model
+betahat = cbind(coef(model))
+
+# Betahat includes an intercept, so this must be accounted
+# for in the design matrix
+X.matrix = as.matrix(cbind(rep(1,nrow(X.validation)),X.validation))
+
+#Calculate predicted values
+Y.pred = X.matrix%*%betahat
+
+#Calculate RMSPE
+Y.validation = as.matrix(Y.validation)
+sqrt(1/(nrow(Y.validation))*sum((Y.validation-Y.pred)^2))
+
+# Next, RMSPE will be calculated for the step model
+# select correct validation set (choose 1)
+#primary
+step.X.validation = X.validation[,c(2,7:11,13,15,18,23:26)]
+#alt1
+step.X.validation = X.validation[,c(5:9,11,13,16,21,23,27)]
+#alt2
+step.X.validation = X.validation[,c(1,3:7,9,11,14,19,21)]
+#alt3
+step.X.validation = X.validation[,c(3:7,9,11,14,17,18,20:23)]
+
+step.betahat = as.matrix(cbind(coef(stepmodel)))
+step.X.matrix = as.matrix(cbind(rep(1,nrow(step.X.validation)),step.X.validation))
+step.Y.pred = step.X.matrix %*% step.betahat
+
+#Calculate RMSPE
+sqrt(1/(nrow(Y.validation))*sum((Y.validation-step.Y.pred)^2))
+
+
+########################################################
+########################################################
+
+# Additional code for use in Python visualizations
+
+########################################################
+########################################################
+# Save various elements locally for visualization
+
+# Save residuals for Python visualization
+viz_e = data.frame(Project.Data$county_fips_code,e)
+viz_step.e = data.frame(Project.Data$county_fips_code,step.e)
+viz_step.yhat = data.frame(Project.Data$county_fips_code,step.yhat)
+
+# primary
+# write.csv(viz_e,'primary_residuals.csv')
+# write.csv(viz_step.e,'primary_step_residuals.csv')
+# write.csv(viz_step.yhat,'primary_step_predict.csv')
+
+# alt1
+# write.csv(viz_e,'alt1_residuals.csv')
+# write.csv(viz_step.e,'alt1_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt1_step_predict.csv')
+
+# alt2
+# write.csv(viz_e,'alt2_residuals.csv')
+# write.csv(viz_step.e,'alt2_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt2_step_predict.csv')
+
+# alt3
+# write.csv(viz_e,'alt3_residuals.csv')
+# write.csv(viz_step.e,'alt3_step_residuals.csv')
+# write.csv(viz_step.yhat,'alt3_step_predict.csv')
